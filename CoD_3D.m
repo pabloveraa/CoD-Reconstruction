@@ -216,28 +216,35 @@ function set_frame_error(main_fig)
 global r
 p = uipanel(main_fig,'title','reconstruction error','units','normalized', ...
     'position',[0.75 0.02 0.22 0.47],'fontsize',12);
-x = [0.07 0.40];
-y = [0.09 0.26 0.43 0.63 0.80];
-w = 0.30;
+x = [0.04 0.24 0.62];
+y = [0.07 0.24 0.41 0.62 0.79];
+w = 0.17;
 h = 0.12;
 fsz = 11;  %font size
 
 %CoD displacement
-uicontrol(p,'style','text','units','normalized','position',[x(1) y(5) 2.5*w h], ...
+uicontrol(p,'style','text','units','normalized','position',[x(1) y(5) 4*w h], ...
     'string','CoD displacement','fontsize',fsz);
-annotation(p,'textbox','units','normalized','position',[x(1) y(4) 0.5*w h],'edgecolor',[0.8 0.8 0.8], ... 
+annotation(p,'textbox','units','normalized','position',[x(1) y(4) w h],'edgecolor',[0.8 0.8 0.8], ... 
     'string','$\delta$:','interpreter','latex','fontsize',14);
-r.delta_cod = uicontrol(p,'style','edit','units','normalized','position',[x(2) y(4) w h],'fontsize',fsz);
+r.delta_cod = uicontrol(p,'style','edit','units','normalized','position',[x(2) y(4) 2*w h],'fontsize',fsz);
+uicontrol(p,'style','text','units','normalized','position',[x(3) y(4) w h], ...
+    'string','pixels','fontsize',fsz);
 
 %distortion coefficient
-uicontrol(p,'style','text','units','normalized','position',[x(1) y(3) 2.5*w h], ...
+uicontrol(p,'style','text','units','normalized','position',[x(1) y(3) 4*w h], ...
     'string','distortion coefficient','fontsize',fsz);
-uicontrol(p,'style','text','units','normalized','position',[x(1) y(2) 0.5*w h], ...
+uicontrol(p,'style','text','units','normalized','position',[x(1) y(2) w h], ...
     'string','min','fontsize',fsz);
-uicontrol(p,'style','text','units','normalized','position',[x(1) y(1) 0.5*w h], ...
+uicontrol(p,'style','text','units','normalized','position',[x(1) y(1) w h], ...
     'string','max','fontsize',fsz);
-r.lambda_min = uicontrol(p,'style','edit','units','normalized','position',[x(2) y(2) w h],'fontsize',fsz);
-r.lambda_max = uicontrol(p,'style','edit','units','normalized','position',[x(2) y(1) w h],'fontsize',fsz);
+r.lambda_min = uicontrol(p,'style','edit','units','normalized','position',[x(2) y(2) 2*w h],'fontsize',fsz);
+r.lambda_max = uicontrol(p,'style','edit','units','normalized','position',[x(2) y(1) 2*w h],'fontsize',fsz);
+ax = axes(p,'visible','off','position',[x(3) y(2)+0.5*h 1.5*w h]);
+text(ax,0,0,'pixels $^{-2}$','interpreter','latex','fontsize',fsz);
+ax = axes(p,'visible','off','position',[x(3) y(1)+0.5*h 1.5*w h]);
+text(ax,0,0,'pixels $^{-2}$','interpreter','latex','fontsize',fsz);
+
 
 %===============================================
 function fun_3d_plot(~,~)
@@ -271,24 +278,25 @@ global r
 [X,Y,Z] = compute_world_points();
 %camera view angles and translation
 [rg,t] = camera_poses();
-[x1,y1] = ideal_point_projection(X,Y,Z,rg{1},t{1});
-[x2,y2] = ideal_point_projection(X,Y,Z,rg{2},t{2});
+[x1,y1,indz1] = ideal_point_projection(X,Y,Z,rg{1},t{1});
+[x2,y2,indz2] = ideal_point_projection(X,Y,Z,rg{2},t{2});
+ind = (indz1==1) & (indz2==1);
 
 %image resolution
 cols = str2double(r.cols.String);
 rows = str2double(r.rows.String);
 
-hf = figure('name','image_points','units','normalized','position',[0.1 0.08 0.35 0.8],'numbertitle','off');
-p = uipanel(hf,'title','camera view 1 - ideal points','units','normalized','position',[0.1 0.55 0.9 0.45]);
+hf = figure('name','image_points','units','normalized','position',[0.12 0.08 0.34 0.78],'numbertitle','off');
+p = uipanel(hf,'title','camera view 1 - ideal points','units','normalized','position',[0.05 0.52 0.9 0.46]);
 ax = axes(p);
-plot(ax,x1,y1,'b.'); grid on;
+plot(ax,x1(ind),y1(ind),'b.'); grid on;
 axis([1 cols 1 rows]);
 xlabel('x (pixels)');
 ylabel('y (pixels)');
 
-p = uipanel(hf,'title','camera view 2 - ideal points','units','normalized','position',[0.1 0.05 0.9 0.45]);
+p = uipanel(hf,'title','camera view 2 - ideal points','units','normalized','position',[0.05 0.03 0.9 0.46]);
 ax = axes(p);
-plot(ax,x2,y2,'b.'); grid on;
+plot(ax,x2(ind),y2(ind),'b.'); grid on;
 axis([1 cols 1 rows]);
 xlabel('x (pixels)');
 ylabel('y (pixels)');
@@ -298,17 +306,24 @@ function fun_error_plot(~,~)
 global r
 %compute the 3D world points
 [X,Y,Z] = compute_world_points();
-P = [X, Y, Z];
+
 %camera view angles and translation
 [rg,t] = camera_poses();
-[x1,y1] = ideal_point_projection(X,Y,Z,rg{1},t{1});
-[x2,y2] = ideal_point_projection(X,Y,Z,rg{2},t{2});
+%(x1,y1) and (x2,y2): points projected to the images 1 and 2 respectively
+%points infront of the camera: indz1=1 and indz2=1
+%points behind the camera: indz1=0 and indz2=0
+[x1,y1,indz1] = ideal_point_projection(X,Y,Z,rg{1},t{1});
+[x2,y2,indz2] = ideal_point_projection(X,Y,Z,rg{2},t{2});
+indz = (indz1==1) & (indz2==1);
+ptu1 = [x1(indz), y1(indz)];
+ptu2 = [x2(indz), y2(indz)];
+P = [X(indz), Y(indz), Z(indz)];
 
 %find best control point
 x0 = str2double(r.x_0.String);
 y0 = str2double(r.y_0.String);
-r1 = sqrt((x1-x0).^2 + (y1-y0).^2);
-r2 = sqrt((x2-x0).^2 + (y2-y0).^2);
+r1 = sqrt((x1(indz)-x0).^2 + (y1(indz)-y0).^2);
+r2 = sqrt((x2(indz)-x0).^2 + (y2(indz)-y0).^2);
 rs = r1 + r2;
 cp = find(rs==min(rs));
 cp = cp(1);
@@ -326,17 +341,27 @@ delta = str2double(r.delta_cod.String);
 theta = (0:45:315)';
 e_mean = zeros(nd,2);
 e_std = zeros(nd,2);
+nc_min = inf;  %minimum number of correspondences
 wb = waitbar(0,'computing reconstruction error');
 for i=1:nd
-    ptd1 = apply_distortion([x1,y1],lambda(i),x0,y0);
-    ptd2 = apply_distortion([x2,y2],lambda(i),x0,y0);
-    epsilon = reconstruction_error(ptd1,ptd2,x0,y0,delta,theta,lambda(i),P,cp,rows,cols,ft);
-    e_mean(i,:) = mean(epsilon);
-    e_std(i,:) = std(epsilon);
+    ptd1 = apply_distortion(ptu1,lambda(i),x0,y0);
+    ptd2 = apply_distortion(ptu2,lambda(i),x0,y0);
+    %points inside the images
+    ind = (ptd1(:,1)>=1 & ptd1(:,1)<=cols) & (ptd1(:,2)>=1 & ptd1(:,2)<=rows) ...
+        & (ptd2(:,1)>=1 & ptd2(:,1)<=cols) & (ptd2(:,2)>=1 & ptd2(:,2)<=rows);
+    nc_min = min(nc_min, sum(ind));
+    if( sum(ind)>=8 )
+        epsilon = reconstruction_error(ptd1,ptd2,x0,y0,delta,theta,lambda(i),P,cp,ft,ind);
+        e_mean(i,:) = mean(epsilon);
+        e_std(i,:) = std(epsilon);
+    end    
     waitbar(i/nd,wb,'computing reconstruction error');
 end
 close(wb);
 plot_error(e_mean,e_std,lambda);
+if( nc_min<8 )
+    msgbox('Image correspondences are insufficient. Results might be inaccurate.','error','error');
+end
 
 %====================================================
 function fun_defaults(~,~)
@@ -449,15 +474,12 @@ rg{2} = [str2double(r.theta_x2.String); str2double(r.theta_y2.String); str2doubl
 t{2} = [str2double(r.tx2.String); str2double(r.ty2.String); str2double(r.tz2.String)];
 
 %====================================================================
-function epsilon = reconstruction_error(ptd1,ptd2,x0,y0,delta,theta,lambda,P,cp,rows,cols,ft)
+function epsilon = reconstruction_error(ptd1,ptd2,x0,y0,delta,theta,lambda,P,cp,ft,ind)
 %compute the reconstruction error for the cases A and B
 %case A: the principal point is the CoD
 %case B: the principal point is fixed at (x0,y0)
 n = length(theta);
 epsilon = zeros(n,2);
-%points inside the images
-ind = (ptd1(:,1)>=1 & ptd1(:,1)<=cols) & (ptd1(:,2)>=1 & ptd1(:,2)<=rows) ...
-    & (ptd2(:,1)>=1 & ptd2(:,1)<=cols) & (ptd2(:,2)>=1 & ptd2(:,2)<=rows);
 for i=1:n
     %CoD displacement
     xd = x0 + delta*cosd(theta(i));
@@ -519,7 +541,7 @@ Rz = [cosd(thz) -sind(thz) 0; sind(thz) cosd(thz) 0; 0 0 1];
 R_mat = Rx * Ry * Rz;
 
 %========================================================
-function [x,y] = ideal_point_projection(X,Y,Z,rg,t)
+function [x,y,indz] = ideal_point_projection(X,Y,Z,rg,t)
 global r
 R_mat = rotation_matrix(rg(1),rg(2),rg(3));
 n = length(X);
@@ -529,9 +551,7 @@ x0 = str2double(r.x_0.String);
 y0 = str2double(r.y_0.String);
 x = f * P(1,:)'./P(3,:)' + x0;
 y = f * P(2,:)'./P(3,:)' + y0;
-ind = (P(3,:)'>0);
-x = x(ind);
-y = y(ind);
+indz = (P(3,:)'>0);
 
 %======================================================
 function ptd = apply_distortion(pts,lambda,x0,y0)
